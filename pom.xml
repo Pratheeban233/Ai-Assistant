@@ -9,10 +9,10 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.ai.prathi</groupId>
-    <artifactId>ecommerce-assistant</artifactId>
+    <artifactId>ai-assistant</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>Ecommerce Assistant</name>
-    <description>Spring Boot ecommerce assistant with LangChain4j agents and H2 persistence</description>
+    <name>AI Assistant</name>
+    <description>Spring Boot learning project with LangChain4j agents and H2 persistence</description>
     <url/>
     <licenses>
         <license/>

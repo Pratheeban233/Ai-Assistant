@@ -1,6 +1,6 @@
 package com.ai.prathi.controller;
 
-import com.ai.prathi.agent.Assistant;
+import com.ai.prathi.agent.AssistantAgent;
 import com.ai.prathi.agent.OrderAgent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,12 +13,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AssistantController {
 
-    private final Assistant assistant;
+    private final AssistantAgent assistantAgent;
     private final OrderAgent orderAgent;
 
     @GetMapping("/chat")
     public String chat(@RequestParam("message") String message) {
-        return assistant.chat(message);
+        return assistantAgent.chat(message);
     }
 
     @GetMapping("/order")

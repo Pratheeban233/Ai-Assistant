@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(properties = "langchain4j.google-ai-gemini.chat-model.api-key=test")
-class EcommerceAssistantApplicationTests {
+class AiAssistantApplicationTests {
 
 	@Autowired
 	private CustomerOrderRepository orderRepository;

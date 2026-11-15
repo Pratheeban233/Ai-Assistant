@@ -20,10 +20,6 @@ public class OrderService {
 
     private final CustomerOrderRepository orderRepository;
 
-    public List<CustomerOrder> findAll() {
-        return orderRepository.findAll();
-    }
-
     public Optional<CustomerOrder> findByOrderNumber(String orderNumber) {
         return orderRepository.findByOrderNumber(orderNumber);
     }

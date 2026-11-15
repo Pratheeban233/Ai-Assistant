@@ -1,6 +1,6 @@
-# Ecommerce Assistant
+# AI Assistant
 
-Spring Boot sample application with two separate LangChain4j agents and an in-memory H2 database.
+Spring Boot learning project with two separate LangChain4j agents and an in-memory H2 database. The sample order workflow demonstrates agent tools, services, repositories, and JPA persistence.
 
 ## Request flow
 
