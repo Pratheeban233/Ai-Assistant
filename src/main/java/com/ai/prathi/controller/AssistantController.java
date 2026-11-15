@@ -2,16 +2,25 @@ package com.ai.prathi.controller;
 
 import com.ai.prathi.agent.AssistantAgent;
 import com.ai.prathi.agent.OrderAgent;
-import com.ai.prathi.agent.workflow.WorkflowSupportAgent;
+import com.ai.prathi.agent.workflow.RefundSupervisorAgent;
+import com.ai.prathi.request.ApprovalDecisionRequest;
 import com.ai.prathi.request.ChatRequest;
 import com.ai.prathi.request.PersonalizedChatRequest;
+import com.ai.prathi.response.ApprovalResponse;
+import com.ai.prathi.service.OrderActionApprovalService;
 import dev.langchain4j.service.Result;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/assistant")
@@ -20,7 +29,8 @@ public class AssistantController {
 
     private final AssistantAgent assistantAgent;
     private final OrderAgent orderAgent;
-    private final WorkflowSupportAgent workflowSupportAgent;
+    private final RefundSupervisorAgent refundSupervisorAgent;
+    private final OrderActionApprovalService approvalService;
 
     @PostMapping("/chat")
     public String chat(@Valid @RequestBody ChatRequest request) {
@@ -54,8 +64,36 @@ public class AssistantController {
 
     @PostMapping("/refund")
     public String refund(@Valid @RequestBody ChatRequest request) {
-        return workflowSupportAgent.processRefund(
+        return refundSupervisorAgent.handleRequest(
                 assistantConversationId("refund", request.conversationId()), request.message());
+    }
+
+    @GetMapping("/approvals/{approvalId}")
+    public ApprovalResponse getApproval(@PathVariable String approvalId) {
+        return approvalService.getApproval(approvalId);
+    }
+
+    @GetMapping("/approvals/pending")
+    public List<ApprovalResponse> getPendingApprovals() {
+        return approvalService.getPendingApprovals();
+    }
+
+    @PostMapping("/approvals/{approvalId}/approve")
+    public ResponseEntity<ApprovalResponse> approve(
+            @PathVariable String approvalId,
+            @Valid @RequestBody ApprovalDecisionRequest request) {
+        ApprovalResponse response =
+                approvalService.approve(approvalId, request.reviewerName(), request.note());
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(response);
+    }
+
+    @PostMapping("/approvals/{approvalId}/reject")
+    public ApprovalResponse reject(
+            @PathVariable String approvalId,
+            @Valid @RequestBody ApprovalDecisionRequest request) {
+        return approvalService.reject(approvalId, request.reviewerName(), request.note());
     }
 
     private String assistantConversationId(String mode, String conversationId) {

@@ -1,6 +1,7 @@
 package com.ai.prathi.tools;
 
 import com.ai.prathi.entity.CustomerOrder;
+import com.ai.prathi.service.OrderActionApprovalService;
 import com.ai.prathi.service.OrderService;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
@@ -14,6 +15,7 @@ import java.math.BigDecimal;
 public class OrderTools {
 
     private final OrderService orderService;
+    private final OrderActionApprovalService approvalService;
 
     @Tool("Create an ecommerce order using the customer, product, payment, and shipping details provided.")
     public String createOrder(
@@ -45,8 +47,8 @@ public class OrderTools {
                 .orElse("Order " + orderNumber + " was not found.");
     }
 
-    @Tool("Cancel an ecommerce order. Orders that have shipped cannot be cancelled.")
+    @Tool("Request human approval to cancel an ecommerce order. Orders that have shipped cannot be cancelled.")
     public String cancelOrder(@P("Order number to cancel") String orderNumber) {
-        return orderService.cancelOrder(orderNumber);
+        return approvalService.requestCancellationApproval(orderNumber);
     }
 }

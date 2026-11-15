@@ -1,6 +1,7 @@
 package com.ai.prathi.controller;
 
 import dev.langchain4j.exception.LangChain4jException;
+import com.ai.prathi.service.ApprovalConflictException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -10,6 +11,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
 import java.time.Instant;
@@ -45,6 +47,31 @@ public class ApiExceptionHandler {
                 detail,
                 request
         );
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ProblemDetail> handleResponseStatus(
+            ResponseStatusException exception, HttpServletRequest request) {
+        HttpStatus status = HttpStatus.valueOf(exception.getStatusCode().value());
+        String code = status == HttpStatus.UNAUTHORIZED
+                ? "APPROVAL_UNAUTHORIZED"
+                : status == HttpStatus.SERVICE_UNAVAILABLE
+                        ? "APPROVAL_REVIEW_DISABLED"
+                        : "REQUEST_REJECTED";
+        String detail = exception.getReason() == null
+                ? status.getReasonPhrase()
+                : exception.getReason();
+        return problem(status, code, detail, request);
+    }
+
+    @ExceptionHandler(ApprovalConflictException.class)
+    public ResponseEntity<ProblemDetail> handleApprovalConflict(
+            ApprovalConflictException exception, HttpServletRequest request) {
+        return problem(
+                HttpStatus.CONFLICT,
+                "APPROVAL_ALREADY_REVIEWED",
+                exception.getMessage(),
+                request);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

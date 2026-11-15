@@ -1,6 +1,6 @@
 package com.ai.prathi.tools;
 
-import com.ai.prathi.service.ReplacementService;
+import com.ai.prathi.service.OrderActionApprovalService;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import lombok.RequiredArgsConstructor;
@@ -10,12 +10,12 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class ReplacementTools {
 
-    private final ReplacementService replacementService;
+    private final OrderActionApprovalService approvalService;
 
-    @Tool("Record a replacement request for an eligible paid and delivered order. This does not create or ship a replacement.")
-    public String requestReplacement(
+    @Tool("Request human approval for a replacement request on an eligible paid delivered order. Do not create the replacement directly.")
+    public String requestReplacementApproval(
             @P("Verified order number") String orderNumber,
             @P("Customer's reason for requesting a replacement") String reason) {
-        return replacementService.requestReplacement(orderNumber, reason);
+        return approvalService.requestReplacementApproval(orderNumber, reason);
     }
 }

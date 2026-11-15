@@ -1,6 +1,6 @@
 package com.ai.prathi.tools;
 
-import com.ai.prathi.service.RefundService;
+import com.ai.prathi.service.OrderActionApprovalService;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import lombok.RequiredArgsConstructor;
@@ -10,12 +10,12 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class RefundTools {
 
-    private final RefundService refundService;
+    private final OrderActionApprovalService approvalService;
 
-    @Tool("Record a simulated refund for an eligible paid delayed or delivered order. This does not contact a payment provider.")
-    public String issueRefund(
+    @Tool("Request human approval for a simulated refund. Never execute the refund directly.")
+    public String requestRefundApproval(
             @P("Verified order number") String orderNumber,
             @P("Customer's reason for requesting the refund") String reason) {
-        return refundService.issueRefund(orderNumber, reason);
+        return approvalService.requestRefundApproval(orderNumber, reason);
     }
 }

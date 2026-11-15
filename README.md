@@ -13,13 +13,14 @@ HTTP request
                           -> OrderService
                               -> CustomerOrderRepository
                                   -> H2
-       -> /refund -> WorkflowSupportAgent (fixed sequence)
-                       -> OrderAgent -> Order Tool -> CUSTOMER_ORDERS
-                       -> RefundAgent -> action tool -> policy/service -> H2
-                       -> ResponseAgent
+       -> /refund -> RefundSupervisorAgent
+                       -> OrderAgent (order/payment lookup)
+                       -> ShippingAgent (shipping lookup)
+                       -> RefundAgent (requested action only)
+                       -> ResponseAgent (structured final answer)
 ```
 
-The `agent` package contains chat agents; `agent.workflow` contains the three workflow agents and listener. `tools` holds callable actions, `service` contains business and policy logic, `repository` handles JPA persistence, and `entity` contains persisted JPA types.
+The `agent` package contains chat agents; `agent.workflow` contains workflow specialists, supervisor, and listener. `tools` holds callable actions, `service` contains business and policy logic, `repository` handles JPA persistence, and `entity` contains persisted JPA types.
 
 The Gemini model is configured to return and resend its thinking data. Gemini 3 uses a `thought_signature` to continue a tool call; without these settings, follow-up requests after order tools can fail.
 
@@ -86,11 +87,11 @@ Each conversation uses `MessageWindowChatMemory` with a 20-message window, so ol
 
 This memory is in-process and temporary: restarting the application clears it, and multiple application instances do not share it. A deployed app that needs durable or shared history should configure a persistent/shared `ChatMemoryStore`. This learning app has no authentication; in a real app, authenticate users and verify that each conversation ID belongs to the requesting user.
 
-The order agent can create orders, check their status, and cancel orders that have not shipped. Seed orders include `ORD-1001`, `ORD-1002`, `ORD-1003`, and `ORD-1004` (paid and delayed).
+The order agent can create orders, check their status, and request cancellation of orders that have not shipped. Mutating actions require human approval before execution. Seed orders `ORD-1001`–`ORD-1008` cover delivered, in-transit, delayed, processing, paid, and pending-payment combinations. For example, `ORD-1005` is delayed with payment pending, `ORD-1006` is delayed but already in transit, `ORD-1007` is delivered with payment pending, and `ORD-1008` is paid but still processing.
 
 ## Multi-agent refund workflow
 
-`POST /api/assistant/refund` coordinates three independent agents using LangChain4j's sequential agent workflow. Each request uses the standard chat JSON body:
+`POST /api/assistant/refund` uses a LangChain4j supervisor to coordinate order, shipping, refund, and response agents. Each request uses the standard chat JSON body:
 
 ```powershell
 curl.exe -X POST http://localhost:8080/api/assistant/refund `
@@ -98,9 +99,54 @@ curl.exe -X POST http://localhost:8080/api/assistant/refund `
   -d '{\"conversationId\":\"refund-demo\",\"message\":\"Please refund order ORD-1001 because it arrived damaged.\"}'
 ```
 
-`AgentConfiguration` wires a fixed `OrderAgent → RefundAgent → ResponseAgent` sequence. Results flow through LangChain4j's shared `AgenticScope` using the output keys `orderDetails`, `refundDecision`, and `finalResponse`; agents do not invoke one another directly. Each agent has a clear system message for its role/rules and a user message for the current request and workflow data. `RefundWorkflowListener` is attached to the sequence and logs each agent's start, completion, result key, and shortened result.
+`RefundSupervisorAgent` chooses which specialist to call based on the request. `OrderAgent` verifies order/payment details, `ShippingAgent` verifies tracking and delivery details, and `RefundAgent` creates a pending approval only when the customer explicitly asks for a refund, cancellation, or replacement. No action is executed at that point. `ResponseAgent` runs last and summarizes the relevant verified details and pending approval outcome in 2–3 natural sentences, rather than listing each agent's steps. A fixed sequence version remains commented in `AgentConfiguration` for comparison; enable it only if you want every agent to run in a fixed order.
 
-The `REFUND_POLICY` table stores action-specific eligibility and messages, including the delay-refund rules in the guide. Services make the final decision using the policy, payment/shipping state, and duplicate-action checks—not the LLM. The workflow can cancel or refund paid delayed orders and refund or request replacement for paid delivered orders. Cancellation is rejected after shipment. Refunds and replacement requests are stored in H2; no payment provider or shipping service is contacted. Seeded `ORD-1004` is paid and delayed, while `ORD-1001` is paid and delivered. Agent output logs can contain order details; do not log them in production unless appropriate.
+Agent results are shared through LangChain4j's `AgenticScope` using `orderDetails`, `shippingDetails`, `refundDecision`, and `finalResponse`. The supervisor pre-populates clear defaults for specialist results that were not needed. `RefundWorkflowListener` logs each agent's start, completion, result key, and shortened result.
+
+The `REFUND_POLICY` table stores action-specific eligibility and messages. Services check the policy, payment/shipping state, and duplicate actions before creating an approval; the LLM cannot approve or execute actions. On approval, the service repeats eligibility checks and then executes the refund/cancellation/replacement simulation. Rejection never executes the action. No payment provider or shipping service is contacted. Seeded `ORD-1004` is paid and delayed, while `ORD-1001` is paid and delivered; the additional examples cover other payment/shipping combinations. Agent output logs can contain order details; do not log them in production unless appropriate.
+
+### Review a pending action
+
+The assistant response includes an `approvalId` when an eligible action is waiting for review. Review is done with simple HTTP requests; no console interaction, token, or extra approval UI is required:
+
+```powershell
+$approvalId = "approval-id-from-the-assistant-response"
+
+# List requests that are waiting for review.
+curl.exe "http://localhost:8080/api/assistant/approvals/pending"
+
+# Approve a request.
+curl.exe -X POST "http://localhost:8080/api/assistant/approvals/$approvalId/approve" `
+  -H "Content-Type: application/json" `
+  -d '{"reviewerName":"Store Manager","note":"Verified the request"}'
+
+# To reject instead, use /reject. A rejected action is never executed.
+curl.exe -X POST "http://localhost:8080/api/assistant/approvals/$approvalId/reject" `
+  -H "Content-Type: application/json" `
+  -d '{"reviewerName":"Store Manager","note":"Request does not meet policy"}'
+```
+
+An approval response looks like this (IDs and timestamps will differ):
+
+```json
+{
+  "approvalId": "a1b2c3",
+  "orderNumber": "ORD-1004",
+  "action": "DELAY_REFUND",
+  "amount": 59.99,
+  "reason": "Delivery was delayed",
+  "approvalStatus": "APPROVED",
+  "executionStatus": "SUCCEEDED",
+  "reviewerName": "Store Manager",
+  "decisionNote": "Verified the request",
+  "executionResult": "Simulated refund recorded for order ORD-1004 for 59.99. No payment provider was contacted.",
+  "createdAt": "2026-11-15T10:00:00",
+  "reviewedAt": "2026-11-15T10:05:00",
+  "executedAt": "2026-11-15T10:05:00"
+}
+```
+
+Approval results report `approvalStatus` separately from `executionStatus`. These review endpoints have no authentication and are intended only for local learning. A real application must protect them with authenticated, role-based reviewer access.
 
 See [the multi-agent refund workflow guide](docs/multi-agent-refund-workflow.md) for a flow diagram and step-by-step explanation.
 
@@ -119,9 +165,9 @@ H2 is configured as an in-memory database at `jdbc:h2:mem:ecommerce`. Hibernate 
    | User Name | `sa` |
    | Password | Leave blank |
 
-4. Click **Connect**, then run `SELECT * FROM CUSTOMER_ORDERS;`. To inspect policy, refund, and replacement records, run `SELECT * FROM REFUND_POLICY;`, `SELECT * FROM REFUND_TRANSACTIONS;`, and `SELECT * FROM REPLACEMENT_REQUESTS;`.
+4. Click **Connect**, then run `SELECT * FROM CUSTOMER_ORDERS;`. To inspect policy, approval, refund, and replacement records, run `SELECT * FROM REFUND_POLICY;`, `SELECT * FROM ORDER_ACTION_APPROVALS;`, `SELECT * FROM REFUND_TRANSACTIONS;`, and `SELECT * FROM REPLACEMENT_REQUESTS;`.
 
-The order, payment, and shipping fields are stored as columns in `CUSTOMER_ORDERS`. Policy rows are seeded in `REFUND_POLICY`; simulated refund records are stored in `REFUND_TRANSACTIONS`; replacement request records are stored in `REPLACEMENT_REQUESTS`.
+The order, payment, and shipping fields are stored as columns in `CUSTOMER_ORDERS`. Policy rows are seeded in `REFUND_POLICY`; human decisions and execution status are stored in `ORDER_ACTION_APPROVALS`; simulated refund records are stored in `REFUND_TRANSACTIONS`; replacement request records are stored in `REPLACEMENT_REQUESTS`.
 
 ## API errors
 

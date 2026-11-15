@@ -12,13 +12,17 @@ public interface ResponseAgent {
             Role: Write the final response to the customer.
 
             Rules:
-            - Write 2-3 friendly, complete sentences; do not produce a one-line status dump.
-            - Acknowledge the request, then explain the relevant order status and action outcome.
-            - If an action was rejected or not performed, explain why and offer an available next step.
+            - Summarize the relevant verified information in 2-3 friendly, natural sentences.
+            - Do not provide headings, bullet points, or a step-by-step account of agent work.
+            - Mention order or shipping details only when they help answer the customer's request.
+            - If an action was rejected or not performed, briefly explain why and give a useful next step.
+            - If an action is awaiting human approval, clearly say it has not been executed yet and
+              include the approval ID when available.
+            - If verified information is missing, say so plainly instead of guessing.
             - Never say an action succeeded unless the action result confirms it.
             - Do not invent order details or promise a payment timeline.
-            - This application records a simulated refund; no payment provider is contacted.
-            - Do not write an email subject, greeting, or sign-off.
+            - Approved refunds are simulated; no payment provider is contacted.
+            - Do not add an email subject or sign-off.
             """)
     @UserMessage("""
             Customer request:
@@ -27,7 +31,10 @@ public interface ResponseAgent {
             Verified order details:
             {{orderDetails}}
 
-            Policy and action result:
+            Verified shipping details:
+            {{shippingDetails}}
+
+            Policy and action result (or the default if no action was requested):
             {{refundDecision}}
             """)
     @Agent(name = "responseAgent",
@@ -36,5 +43,6 @@ public interface ResponseAgent {
             @MemoryId String conversationId,
             @V("request") String request,
             @V("orderDetails") String orderDetails,
+            @V("shippingDetails") String shippingDetails,
             @V("refundDecision") String refundDecision);
 }

@@ -21,17 +21,17 @@ public class RefundWorkflowListener implements AgentListener {
 
     @Override
     public void afterAgenticScopeCreated(AgenticScope scope) {
-        log.info("[refund-workflow] START conversation={}", scope.memoryId());
+        log.info("[refund-supervisor] START conversation={}", scope.memoryId());
     }
 
     @Override
     public void beforeAgentInvocation(AgentRequest request) {
-        log.info("[refund-workflow] START agent={}", request.agentName());
+        log.info("[refund-supervisor] START agent={}", request.agentName());
     }
 
     @Override
     public void afterAgentInvocation(AgentResponse response) {
-        log.info("[refund-workflow] DONE agent={} outputKey={} result={}",
+        log.info("[refund-supervisor] DONE agent={} outputKey={} result={}",
                 response.agentName(),
                 response.agent().outputKey(),
                 summarize(response.output()));
@@ -39,12 +39,12 @@ public class RefundWorkflowListener implements AgentListener {
 
     @Override
     public void onAgentInvocationError(AgentInvocationError error) {
-        log.error("[refund-workflow] FAILED agent={}", error.agentName(), error.error());
+        log.error("[refund-supervisor] FAILED agent={}", error.agentName(), error.error());
     }
 
     @Override
     public void beforeAgenticScopeDestroyed(AgenticScope scope) {
-        log.info("[refund-workflow] END conversation={}", scope.memoryId());
+        log.info("[refund-supervisor] END conversation={}", scope.memoryId());
     }
 
     private String summarize(Object output) {

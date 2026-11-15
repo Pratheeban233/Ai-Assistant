@@ -2,17 +2,27 @@ package com.ai.prathi.controller;
 
 import com.ai.prathi.agent.AssistantAgent;
 import com.ai.prathi.agent.OrderAgent;
-import com.ai.prathi.agent.workflow.WorkflowSupportAgent;
+import com.ai.prathi.agent.workflow.RefundSupervisorAgent;
+import com.ai.prathi.entity.ApprovalStatus;
+import com.ai.prathi.entity.ExecutionStatus;
+import com.ai.prathi.entity.RefundPolicyAction;
+import com.ai.prathi.request.ApprovalDecisionRequest;
+import com.ai.prathi.response.ApprovalResponse;
+import com.ai.prathi.service.ApprovalConflictException;
+import com.ai.prathi.service.OrderActionApprovalService;
 import dev.langchain4j.exception.InvalidRequestException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.util.List;
+
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -23,16 +33,22 @@ class ApiExceptionHandlerTest {
 
     private AssistantAgent assistantAgent;
     private OrderAgent orderAgent;
-    private WorkflowSupportAgent workflowSupportAgent;
+    private RefundSupervisorAgent refundSupervisorAgent;
+    private OrderActionApprovalService approvalService;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         assistantAgent = mock(AssistantAgent.class);
         orderAgent = mock(OrderAgent.class);
-        workflowSupportAgent = mock(WorkflowSupportAgent.class);
+        refundSupervisorAgent = mock(RefundSupervisorAgent.class);
+        approvalService = mock(OrderActionApprovalService.class);
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new AssistantController(assistantAgent, orderAgent, workflowSupportAgent))
+                .standaloneSetup(new AssistantController(
+                        assistantAgent,
+                        orderAgent,
+                        refundSupervisorAgent,
+                        approvalService))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .build();
     }
@@ -165,8 +181,8 @@ class ApiExceptionHandlerTest {
     }
 
     @Test
-    void sendsRefundRequestThroughTheAgenticWorkflow() throws Exception {
-        when(workflowSupportAgent.processRefund(
+    void sendsRefundRequestThroughTheSupervisor() throws Exception {
+        when(refundSupervisorAgent.handleRequest(
                 "assistant:refund:conversation-1", "Please refund order ORD-1001"))
                 .thenReturn("Your simulated refund has been recorded.");
 
@@ -178,7 +194,65 @@ class ApiExceptionHandlerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string("Your simulated refund has been recorded."));
 
-        verify(workflowSupportAgent).processRefund(
+        verify(refundSupervisorAgent).handleRequest(
                 "assistant:refund:conversation-1", "Please refund order ORD-1001");
+    }
+
+    @Test
+    void approvesPendingActionThroughHumanApprovalEndpoint() throws Exception {
+        when(approvalService.approve(
+                "approval-123", "Alex Reviewer", "Verified receipt"))
+                .thenReturn(new ApprovalResponse(
+                        "approval-123",
+                        "ORD-1001",
+                        RefundPolicyAction.DELIVERED_REFUND,
+                        null,
+                        "Item arrived damaged",
+                        ApprovalStatus.APPROVED,
+                        ExecutionStatus.SUCCEEDED,
+                        "Alex Reviewer",
+                        "Verified receipt",
+                        "Simulated refund recorded.",
+                        null,
+                        null,
+                        null));
+
+        mockMvc.perform(post("/api/assistant/approvals/approval-123/approve")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"reviewerName":"Alex Reviewer","note":"Verified receipt"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.approvalId").value("approval-123"))
+                .andExpect(jsonPath("$.approvalStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.executionStatus").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.executionResult").value("Simulated refund recorded."));
+
+        verify(approvalService).approve("approval-123", "Alex Reviewer", "Verified receipt");
+    }
+
+    @Test
+    void listsPendingApprovals() throws Exception {
+        when(approvalService.getPendingApprovals()).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/assistant/approvals/pending"))
+                .andExpect(status().isOk())
+                .andExpect(content().json("[]"));
+
+        verify(approvalService).getPendingApprovals();
+    }
+
+    @Test
+    void returnsConflictWhenAnApprovalWasAlreadyReviewed() throws Exception {
+        doThrow(new ApprovalConflictException("Approval approval-123 has already been reviewed."))
+                .when(approvalService).approve("approval-123", "Alex Reviewer", null);
+
+        mockMvc.perform(post("/api/assistant/approvals/approval-123/approve")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"reviewerName":"Alex Reviewer"}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("APPROVAL_ALREADY_REVIEWED"));
     }
 }

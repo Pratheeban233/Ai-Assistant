@@ -1,6 +1,6 @@
 package com.ai.prathi.tools;
 
-import com.ai.prathi.service.OrderService;
+import com.ai.prathi.service.OrderActionApprovalService;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import lombok.RequiredArgsConstructor;
@@ -10,10 +10,11 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class OrderCancellationTools {
 
-    private final OrderService orderService;
+    private final OrderActionApprovalService approvalService;
 
-    @Tool("Cancel an order that is delayed and has not shipped.")
-    public String cancelDelayedOrder(@P("The order number to cancel") String orderNumber) {
-        return orderService.cancelDelayedPaidOrder(orderNumber);
+    @Tool("Request human approval to cancel an eligible delayed order. Do not cancel directly.")
+    public String requestDelayedCancellationApproval(
+            @P("The order number to cancel") String orderNumber) {
+        return approvalService.requestDelayedCancellationApproval(orderNumber);
     }
 }
