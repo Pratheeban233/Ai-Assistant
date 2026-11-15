@@ -18,12 +18,20 @@ public class AssistantController {
 
     @GetMapping("/chat")
     public String chat(@RequestParam("message") String message) {
+        requireMessage(message);
         return assistantAgent.chat(message);
     }
 
     @GetMapping("/order")
     public String order(@RequestParam("message") String message) {
+        requireMessage(message);
         return orderAgent.chat(message);
+    }
+
+    private void requireMessage(String message) {
+        if (message.isBlank()) {
+            throw new IllegalArgumentException("The message parameter must not be blank.");
+        }
     }
 
 }

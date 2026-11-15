@@ -24,7 +24,9 @@ langchain4j:
       temperature: 0.2
       timeout: 90s
       max-retries: 0
-      log-requests-and-responses: false
+      return-thinking: true
+      send-thinking: true
+      log-requests-and-responses: true
 
 logging:
   level:
