@@ -78,15 +78,38 @@ public class CustomerOrder {
     }
 
     public void cancel() {
-        if ("SHIPPED".equalsIgnoreCase(orderStatus)
-                || "IN_TRANSIT".equalsIgnoreCase(orderStatus)
-                || "DELIVERED".equalsIgnoreCase(orderStatus)
-                || !"NOT_SHIPPED".equalsIgnoreCase(shipping.getStatus())) {
+        if ("REFUNDED".equalsIgnoreCase(payment.getStatus())) {
+            throw new IllegalStateException("Order " + orderNumber + " cannot be cancelled because it has been refunded.");
+        }
+        if (hasShipped()) {
             throw new IllegalStateException("Order " + orderNumber + " cannot be cancelled because it has already shipped.");
         }
         if ("CANCELLED".equalsIgnoreCase(orderStatus)) {
             throw new IllegalStateException("Order " + orderNumber + " is already cancelled.");
         }
         this.orderStatus = "CANCELLED";
+    }
+
+    public void markRefunded() {
+        if (!"PAID".equalsIgnoreCase(payment.getStatus())) {
+            throw new IllegalStateException("Only paid orders can be refunded.");
+        }
+        boolean delayed = "DELAYED".equalsIgnoreCase(orderStatus);
+        boolean delivered = "DELIVERED".equalsIgnoreCase(orderStatus)
+                && "DELIVERED".equalsIgnoreCase(shipping.getStatus());
+        if (!delayed && !delivered) {
+            throw new IllegalStateException("Only paid delayed or delivered orders can be refunded.");
+        }
+        payment.markRefunded();
+    }
+
+    public boolean hasShipped() {
+        return shipping.getShippedAt() != null
+                || "SHIPPED".equalsIgnoreCase(orderStatus)
+                || "IN_TRANSIT".equalsIgnoreCase(orderStatus)
+                || "DELIVERED".equalsIgnoreCase(orderStatus)
+                || "SHIPPED".equalsIgnoreCase(shipping.getStatus())
+                || "IN_TRANSIT".equalsIgnoreCase(shipping.getStatus())
+                || "DELIVERED".equalsIgnoreCase(shipping.getStatus());
     }
 }

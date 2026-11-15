@@ -2,6 +2,7 @@ package com.ai.prathi.controller;
 
 import com.ai.prathi.agent.AssistantAgent;
 import com.ai.prathi.agent.OrderAgent;
+import com.ai.prathi.agent.workflow.WorkflowSupportAgent;
 import dev.langchain4j.exception.InvalidRequestException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,14 +23,16 @@ class ApiExceptionHandlerTest {
 
     private AssistantAgent assistantAgent;
     private OrderAgent orderAgent;
+    private WorkflowSupportAgent workflowSupportAgent;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         assistantAgent = mock(AssistantAgent.class);
         orderAgent = mock(OrderAgent.class);
+        workflowSupportAgent = mock(WorkflowSupportAgent.class);
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new AssistantController(assistantAgent, orderAgent))
+                .standaloneSetup(new AssistantController(assistantAgent, orderAgent, workflowSupportAgent))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .build();
     }
@@ -87,7 +90,8 @@ class ApiExceptionHandlerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.detail").value("message: must not be blank"));
     }
 
     @Test
@@ -98,7 +102,8 @@ class ApiExceptionHandlerTest {
                                 {"conversationId":"  ","message":"Hello"}
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.detail").value("conversationId: must not be blank"));
     }
 
     @Test
@@ -144,7 +149,8 @@ class ApiExceptionHandlerTest {
                                 {"conversationId":"conversation-1","message":"Hello","customerName":"  "}
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.detail").value("customerName: must not be blank"));
     }
 
     @Test
@@ -156,5 +162,23 @@ class ApiExceptionHandlerTest {
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
                 .andExpect(jsonPath("$.detail").value(
                         "The request body is missing, malformed, or invalid."));
+    }
+
+    @Test
+    void sendsRefundRequestThroughTheAgenticWorkflow() throws Exception {
+        when(workflowSupportAgent.processRefund(
+                "assistant:refund:conversation-1", "Please refund order ORD-1001"))
+                .thenReturn("Your simulated refund has been recorded.");
+
+        mockMvc.perform(post("/api/assistant/refund")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"conversationId":"conversation-1","message":"Please refund order ORD-1001"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(content().string("Your simulated refund has been recorded."));
+
+        verify(workflowSupportAgent).processRefund(
+                "assistant:refund:conversation-1", "Please refund order ORD-1001");
     }
 }

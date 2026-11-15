@@ -7,7 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -32,7 +32,6 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler({
             IllegalArgumentException.class,
-            MissingServletRequestParameterException.class,
             HttpMessageNotReadableException.class
     })
     public ResponseEntity<ProblemDetail> handleBadRequest(
@@ -46,6 +45,17 @@ public class ApiExceptionHandler {
                 detail,
                 request
         );
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ProblemDetail> handleValidationError(
+            MethodArgumentNotValidException exception, HttpServletRequest request) {
+        String detail = exception.getBindingResult().getFieldErrors().stream()
+                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .distinct()
+                .reduce((first, next) -> first + "; " + next)
+                .orElse("The request contains invalid fields.");
+        return problem(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", detail, request);
     }
 
     @ExceptionHandler(Exception.class)

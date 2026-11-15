@@ -32,4 +32,8 @@ public class PaymentDetails {
         this.paidAt = paidAt;
     }
 
+    void markRefunded() {
+        this.status = "REFUNDED";
+    }
+
 }

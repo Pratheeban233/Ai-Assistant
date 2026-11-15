@@ -26,7 +26,7 @@ langchain4j:
       max-retries: 0
       return-thinking: true
       send-thinking: true
-      log-requests-and-responses: true
+#       log-requests-and-responses: true
 
 logging:
   level:

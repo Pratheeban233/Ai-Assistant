@@ -2,9 +2,11 @@ package com.ai.prathi.controller;
 
 import com.ai.prathi.agent.AssistantAgent;
 import com.ai.prathi.agent.OrderAgent;
+import com.ai.prathi.agent.workflow.WorkflowSupportAgent;
 import com.ai.prathi.request.ChatRequest;
 import com.ai.prathi.request.PersonalizedChatRequest;
 import dev.langchain4j.service.Result;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -18,20 +20,16 @@ public class AssistantController {
 
     private final AssistantAgent assistantAgent;
     private final OrderAgent orderAgent;
+    private final WorkflowSupportAgent workflowSupportAgent;
 
     @PostMapping("/chat")
-    public String chat(@RequestBody ChatRequest request) {
-        requireConversationId(request.conversationId());
-        requireMessage(request.message());
+    public String chat(@Valid @RequestBody ChatRequest request) {
         return assistantAgent.chat(
                 assistantConversationId("chat", request.conversationId()), request.message());
     }
 
     @PostMapping("/personalized-chat")
-    public String personalizedChat(@RequestBody PersonalizedChatRequest request) {
-        requireConversationId(request.conversationId());
-        requireMessage(request.message());
-        requireCustomerName(request.customerName());
+    public String personalizedChat(@Valid @RequestBody PersonalizedChatRequest request) {
         return assistantAgent.personalizedChat(
                 assistantConversationId("personalized", request.conversationId()),
                 request.message(),
@@ -39,9 +37,7 @@ public class AssistantController {
     }
 
     @PostMapping("/order")
-    public String order(@RequestBody ChatRequest request) {
-        requireConversationId(request.conversationId());
-        requireMessage(request.message());
+    public String order(@Valid @RequestBody ChatRequest request) {
         Result<String> result =
                 orderAgent.chat(request.conversationId(), request.message());
 
@@ -56,26 +52,14 @@ public class AssistantController {
         return result.content();
     }
 
-    private void requireConversationId(String conversationId) {
-        if (conversationId == null || conversationId.isBlank()) {
-            throw new IllegalArgumentException("The conversationId field must not be blank.");
-        }
+    @PostMapping("/refund")
+    public String refund(@Valid @RequestBody ChatRequest request) {
+        return workflowSupportAgent.processRefund(
+                assistantConversationId("refund", request.conversationId()), request.message());
     }
 
     private String assistantConversationId(String mode, String conversationId) {
         return "assistant:" + mode + ":" + conversationId;
-    }
-
-    private void requireMessage(String message) {
-        if (message == null || message.isBlank()) {
-            throw new IllegalArgumentException("The message field must not be blank.");
-        }
-    }
-
-    private void requireCustomerName(String customerName) {
-        if (customerName == null || customerName.isBlank()) {
-            throw new IllegalArgumentException("The customerName field must not be blank.");
-        }
     }
 
 }

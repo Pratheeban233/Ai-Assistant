@@ -2,6 +2,7 @@ package com.ai.prathi.service;
 
 import com.ai.prathi.entity.CustomerOrder;
 import com.ai.prathi.entity.PaymentDetails;
+import com.ai.prathi.entity.RefundPolicyAction;
 import com.ai.prathi.entity.ShippingDetails;
 import com.ai.prathi.repository.CustomerOrderRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import java.util.UUID;
 public class OrderService {
 
     private final CustomerOrderRepository orderRepository;
+    private final RefundPolicyService policyService;
 
     public Optional<CustomerOrder> findByOrderNumber(String orderNumber) {
         return orderRepository.findByOrderNumber(orderNumber);
@@ -58,6 +60,25 @@ public class OrderService {
         CustomerOrder order = orderRepository.findByOrderNumber(orderNumber).orElse(null);
         if (order == null) {
             return "Order " + orderNumber + " was not found.";
+        }
+        try {
+            order.cancel();
+            return "Order " + orderNumber + " was cancelled.";
+        } catch (IllegalStateException exception) {
+            return exception.getMessage();
+        }
+    }
+
+    @Transactional
+    public String cancelDelayedPaidOrder(String orderNumber) {
+        CustomerOrder order = orderRepository.findByOrderNumber(orderNumber).orElse(null);
+        if (order == null) {
+            return "Order " + orderNumber + " was not found.";
+        }
+        var decision = policyService.evaluate(
+                order, RefundPolicyAction.CANCEL_DELAYED_ORDER);
+        if (!decision.eligible()) {
+            return decision.message();
         }
         try {
             order.cancel();

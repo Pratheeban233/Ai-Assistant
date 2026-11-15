@@ -49,7 +49,15 @@ public class OrderDataInitializer implements CommandLineRunner {
                         new ShippingDetails("Taylor Kim", "789 Demo Road", null,
                                 "Austin", "TX", "73301", "US", null,
                                 null, "NOT_SHIPPED", null, null),
-                        now.minusHours(6))
+                        now.minusHours(6)),
+                new CustomerOrder(
+                        "ORD-1004", "Morgan Patel", "morgan.patel@example.com",
+                        "Smart Speaker", 1, new BigDecimal("59.99"), "DELAYED",
+                        new PaymentDetails("CREDIT_CARD", "PAID", "PAY-DEMO-1004", now.minusDays(3)),
+                        new ShippingDetails("Morgan Patel", "101 Example Lane", null,
+                                "Denver", "CO", "80014", "US", null,
+                                null, "DELAYED", null, null),
+                        now.minusDays(3))
         ));
     }
 }

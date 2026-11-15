@@ -1,4 +1,9 @@
 package com.ai.prathi.request;
 
-public record PersonalizedChatRequest(String conversationId, String message, String customerName) {
+import jakarta.validation.constraints.NotBlank;
+
+public record PersonalizedChatRequest(
+        @NotBlank(message = "must not be blank") String conversationId,
+        @NotBlank(message = "must not be blank") String message,
+        @NotBlank(message = "must not be blank") String customerName) {
 }
