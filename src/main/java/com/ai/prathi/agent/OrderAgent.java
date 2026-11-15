@@ -1,11 +1,15 @@
 package com.ai.prathi.agent;
 
+import dev.langchain4j.service.MemoryId;
+import dev.langchain4j.service.Result;
 import dev.langchain4j.service.SystemMessage;
+import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.spring.AiService;
 import dev.langchain4j.service.spring.AiServiceWiringMode;
 
 @AiService(wiringMode = AiServiceWiringMode.EXPLICIT,
         chatModel = "googleAiGeminiChatModel",
+        chatMemoryProvider = "orderChatMemoryProvider",
         tools = "orderTools")
 public interface OrderAgent {
 
@@ -16,5 +20,5 @@ public interface OrderAgent {
             Never claim an order was created, found, or cancelled unless a tool confirms it.
             Orders that have shipped cannot be cancelled.
             """)
-    String chat(String userMessage);
+    Result<String> chat(@MemoryId String conversationId, @UserMessage String userMessage);
 }

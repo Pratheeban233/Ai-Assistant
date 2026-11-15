@@ -10,10 +10,13 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
 
 class ApiExceptionHandlerTest {
 
@@ -33,10 +36,14 @@ class ApiExceptionHandlerTest {
 
     @Test
     void returnsStructuredErrorWhenAiProviderRejectsARequest() throws Exception {
-        when(orderAgent.chat("check ORD-1001"))
+        when(orderAgent.chat("conversation-1", "check ORD-1001"))
                 .thenThrow(new InvalidRequestException("Missing thought_signature from provider details"));
 
-        mockMvc.perform(get("/api/assistant/order").param("message", "check ORD-1001"))
+        mockMvc.perform(post("/api/assistant/order")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"conversationId":"conversation-1","message":"check ORD-1001"}
+                                """))
                 .andExpect(status().isBadGateway())
                 .andExpect(jsonPath("$.title").value("Bad Gateway"))
                 .andExpect(jsonPath("$.status").value(502))
@@ -48,8 +55,8 @@ class ApiExceptionHandlerTest {
     }
 
     @Test
-    void returnsStructuredErrorWhenMessageIsMissing() throws Exception {
-        mockMvc.perform(get("/api/assistant/chat"))
+    void returnsStructuredErrorWhenRequestBodyIsMissing() throws Exception {
+        mockMvc.perform(post("/api/assistant/chat").contentType(APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
@@ -57,23 +64,97 @@ class ApiExceptionHandlerTest {
     }
 
     @Test
+    void forwardsConversationIdAndMessageToAssistant() throws Exception {
+        when(assistantAgent.chat("assistant:chat:conversation-1", "Hello")).thenReturn("Hi!");
+
+        mockMvc.perform(post("/api/assistant/chat")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"conversationId":"conversation-1","message":"Hello"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(content().string("Hi!"));
+
+        verify(assistantAgent).chat("assistant:chat:conversation-1", "Hello");
+    }
+
+    @Test
     void returnsStructuredErrorWhenMessageIsBlank() throws Exception {
-        mockMvc.perform(get("/api/assistant/chat").param("message", "  "))
+        mockMvc.perform(post("/api/assistant/chat")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"conversationId":"conversation-1","message":"  "}
+                                """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
     }
 
     @Test
+    void rejectsBlankConversationId() throws Exception {
+        mockMvc.perform(post("/api/assistant/chat")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"conversationId":"  ","message":"Hello"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
     void hidesUnexpectedExceptionDetailsFromTheClient() throws Exception {
         doThrow(new IllegalStateException("internal database detail"))
-                .when(assistantAgent).chat("hello");
+                .when(assistantAgent).chat("assistant:chat:conversation-1", "hello");
 
-        mockMvc.perform(get("/api/assistant/chat").param("message", "hello"))
+        mockMvc.perform(post("/api/assistant/chat")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"conversationId":"conversation-1","message":"hello"}
+                                """))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.status").value(500))
                 .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
                 .andExpect(jsonPath("$.detail").value(
                         "An unexpected error occurred. Please try again."));
+    }
+
+    @Test
+    void forwardsCustomerNameToPersonalizedAssistant() throws Exception {
+        when(assistantAgent.personalizedChat(
+                "assistant:personalized:conversation-1", "How is my day?", "Avery"))
+                .thenReturn("Hello, Avery!");
+
+        mockMvc.perform(post("/api/assistant/personalized-chat")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"conversationId":"conversation-1","message":"How is my day?","customerName":"Avery"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(content().string("Hello, Avery!"));
+
+        verify(assistantAgent).personalizedChat(
+                "assistant:personalized:conversation-1", "How is my day?", "Avery");
+    }
+
+    @Test
+    void rejectsBlankCustomerName() throws Exception {
+        mockMvc.perform(post("/api/assistant/personalized-chat")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"conversationId":"conversation-1","message":"Hello","customerName":"  "}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    void rejectsMalformedJsonAsStructuredBadRequest() throws Exception {
+        mockMvc.perform(post("/api/assistant/order")
+                        .contentType(APPLICATION_JSON)
+                        .content("{invalid-json"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.detail").value(
+                        "The request body is missing, malformed, or invalid."));
     }
 }

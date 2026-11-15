@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -29,13 +30,20 @@ public class ApiExceptionHandler {
         );
     }
 
-    @ExceptionHandler({IllegalArgumentException.class, MissingServletRequestParameterException.class})
+    @ExceptionHandler({
+            IllegalArgumentException.class,
+            MissingServletRequestParameterException.class,
+            HttpMessageNotReadableException.class
+    })
     public ResponseEntity<ProblemDetail> handleBadRequest(
             Exception exception, HttpServletRequest request) {
+        String detail = exception instanceof HttpMessageNotReadableException
+                ? "The request body is missing, malformed, or invalid."
+                : exception.getMessage();
         return problem(
                 HttpStatus.BAD_REQUEST,
                 "INVALID_REQUEST",
-                exception.getMessage(),
+                detail,
                 request
         );
     }
