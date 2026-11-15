@@ -1,0 +1,68 @@
+@baseUrl = http://localhost:8080
+@approvalId = paste-approval-id-here
+
+### General assistant chat
+POST {{baseUrl}}/api/assistant/chat
+Content-Type: application/json
+
+{
+  "conversationId": "http-chat-demo",
+  "message": "Hello, what can you help me with?"
+}
+
+### Personalized assistant chat
+POST {{baseUrl}}/api/assistant/personalized-chat
+Content-Type: application/json
+
+{
+  "conversationId": "http-personalized-demo",
+  "message": "Can you help me with my order?",
+  "customerName": "Alex"
+}
+
+### Order agent - look up a seeded order
+POST {{baseUrl}}/api/assistant/order
+Content-Type: application/json
+
+{
+  "conversationId": "http-order-demo",
+  "message": "Check the status of order ORD-1001"
+}
+
+### Refund supervisor - create a pending approval for seeded order ORD-1004
+# Run this request first. Copy the approval ID from the assistant response
+# or GET /api/assistant/approvals/pending into @approvalId above.
+POST {{baseUrl}}/api/assistant/refund
+Content-Type: application/json
+
+{
+  "conversationId": "http-refund-demo",
+  "message": "Please refund order ORD-1004 because the delivery was delayed."
+}
+
+### List pending approvals
+GET {{baseUrl}}/api/assistant/approvals/pending
+
+### Get one approval
+# Set @approvalId to an ID returned from the refund request or pending list.
+GET {{baseUrl}}/api/assistant/approvals/{{approvalId}}
+
+### Approve a pending action
+# Use only while this approval is PENDING. Approval executes the action.
+POST {{baseUrl}}/api/assistant/approvals/{{approvalId}}/approve
+Content-Type: application/json
+
+{
+  "reviewerName": "Store Manager",
+  "note": "Verified the delayed delivery"
+}
+
+### Reject a pending action
+# Use this instead of the approve request for a PENDING approval.
+POST {{baseUrl}}/api/assistant/approvals/{{approvalId}}/reject
+Content-Type: application/json
+
+{
+  "reviewerName": "Store Manager",
+  "note": "Rejecting this request"
+}

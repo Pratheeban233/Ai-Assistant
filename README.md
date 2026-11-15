@@ -67,6 +67,8 @@ The application starts at `http://localhost:8080`. Chat endpoints:
 - Ecommerce order agent: `POST /api/assistant/order`
 - Multi-agent refund workflow: `POST /api/assistant/refund`
 
+`requests.http` in the project root contains ready-to-run HTTP requests for every assistant and approval endpoint. Open it in IntelliJ IDEA or VS Code with the REST Client extension, then use **Send Request** above each request. Run the refund request first, copy its approval ID into `@approvalId`, and send either the approve or reject request while the approval is pending.
+
 The chat, order, and refund endpoints accept a JSON body containing a `conversationId` and `message`. For example:
 
 ```powershell
